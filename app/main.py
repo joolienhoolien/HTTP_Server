@@ -9,30 +9,52 @@ def start_server(host="localhost", port=4221, concurrent_connections=3):
     return server
 
 
+def handle_get(headers):
+    endpoint = headers["GET"]
+    protocol = headers["Protocol"]
+
+    if endpoint == "/" and protocol.startswith("HTTP/1.1"):
+        response = response_200()
+    elif endpoint.startswith("/echo/") and protocol.startswith("HTTP/1.1"):
+        response = response_get_echo(endpoint)
+    elif endpoint.startswith("/user-agent") and protocol.startswith("HTTP/1.1"):
+        response = response_get_user_agent(headers)
+    elif endpoint.startswith("/files/") and protocol.startswith("HTTP/1.1"):
+        response = response_get_file(endpoint)
+    else:
+        response = response_404()
+    return response
+
+
+def handle_post(headers, body):
+    endpoint = headers["POST"]
+    protocol = headers["Protocol"]
+    content_type = headers["Content-Type"]
+    #content_length = headers["Content-Length"]
+    if endpoint.startswith("/files/") and protocol.startswith("HTTP/1.1"):
+        if content_type == "application/octet-stream":
+            with open("../inbox/"+(Path(endpoint)).stem, mode="w") as file:
+                file.write(body)
+                return response_201()
+    return response_404()
+
+
 def handle_request(client_socket):
     # Open the client connection safely using "with", then reply based on their request, then close the connection.
     with client_socket:
-        data = client_socket.recv(1024)
-        request = data.decode("utf-8")
+        data = client_socket.recv(4096)
+        print(f"DATA..... {data}")
+        request = data.decode()
 
-        headers = parse_headers(request)
+        head, sep, body = request.partition("\r\n\r\n")
+        print(f"BODY..... {body}")
 
-        # GET request
-        if headers["GET"]:
-            endpoint = headers["GET"]
-            protocol = headers["Protocol"]
+        headers = parse_headers(head)
 
-            if endpoint == "/" and protocol.startswith("HTTP/1.1"):
-                response = response_get()
-            elif endpoint.startswith("/echo/") and protocol.startswith("HTTP/1.1"):
-                response = response_get_echo(endpoint)
-            elif endpoint.startswith("/user-agent") and protocol.startswith("HTTP/1.1"):
-                response = response_get_user_agent(headers)
-            elif endpoint.startswith("/files/") and protocol.startswith("HTTP/1.1"):
-                response = response_get_file(endpoint)
-            else:
-                response = response_404()
-
+        if "GET" in headers:
+            response = handle_get(headers)
+        elif "POST" in headers:
+            response = handle_post(headers, body)
         else:
             response = response_404()
         print(response)
@@ -41,8 +63,12 @@ def handle_request(client_socket):
         client_socket.sendall(response.encode("utf-8"))
 
 
-def response_get():
+def response_200():
     return "HTTP/1.1 200 OK\r\n\r\n"
+
+
+def response_201():
+    return "HTTP/1.1 201 Created\r\n\r\n"
 
 
 def response_get_echo(endpoint):
