@@ -1,6 +1,7 @@
+import os
 import socket  # noqa: F401
 import threading
-
+from pathlib import Path
 
 def start_server(host="localhost", port=4221, concurrent_connections=3):
     server = socket.create_server((host, port))
@@ -11,7 +12,6 @@ def start_server(host="localhost", port=4221, concurrent_connections=3):
 def handle_request(client_socket):
     # Open the client connection safely using "with", then reply based on their request, then close the connection.
     with client_socket:
-        # if the request has no info past the first /, its 200, otherwise its 404
         data = client_socket.recv(1024)
         request = data.decode("utf-8")
 
@@ -22,39 +22,61 @@ def handle_request(client_socket):
             endpoint = headers["GET"]
             protocol = headers["Protocol"]
 
-            # No request header
             if endpoint == "/" and protocol.startswith("HTTP/1.1"):
-                response = "HTTP/1.1 200 OK\r\n\r\n"
-
-            # echo returns the parameter it is sent
+                response = response_get()
             elif endpoint.startswith("/echo/") and protocol.startswith("HTTP/1.1"):
-                parameter = endpoint.replace("/echo/", "")
-                response = (f"HTTP/1.1 200 OK\r\n\r\n"
-                            f"Content-Type: text/plain\r\n\r\n"
-                            f"Content-Length: {len(parameter)}\r\n\r\n"
-                            f"{parameter}\r\n\r\n")
-
-            # user-agent
+                response = response_get_echo(endpoint)
             elif endpoint.startswith("/user-agent") and protocol.startswith("HTTP/1.1"):
-                user_agent = headers["User-Agent"]
-                response = (f"HTTP/1.1 200 OK\r\n\r\n"
-                            f"Content-Type: text/plain\r\n\r\n"
-                            f"Content-Length: {len(user_agent)}\r\n\r\n"
-                            f"{user_agent}\r\n\r\n")
-
-            #Request a file
+                response = response_get_user_agent(headers)
             elif endpoint.startswith("/files/") and protocol.startswith("HTTP/1.1"):
-                filename = endpoint.replace("/files/", "")
-
+                response = response_get_file(endpoint)
             else:
-                response = "HTTP/1.1 404 OK\r\n\r\n"
+                response = response_404()
 
-        # Not handled CRUD
         else:
-            response = "HTTP/1.1 404 OK\r\n\r\n"
+            response = response_404()
         print(response)
+
         # Respond to client
         client_socket.sendall(response.encode("utf-8"))
+
+
+def response_get():
+    return "HTTP/1.1 200 OK\r\n\r\n"
+
+
+def response_get_echo(endpoint):
+    parameter = endpoint.replace("/echo/", "")
+    return (f"HTTP/1.1 200 OK\r\n\r\n"
+            f"Content-Type: text/plain\r\n\r\n"
+            f"Content-Length: {len(parameter)}\r\n\r\n"
+            f"{parameter}\r\n\r\n")
+
+
+def response_get_user_agent(headers):
+    user_agent = (headers["User-Agent"])
+    return (f"HTTP/1.1 200 OK\r\n\r\n"
+            f"Content-Type: text/plain\r\n\r\n"
+            f"Content-Length: {len(user_agent)}\r\n\r\n"
+            f"{user_agent}\r\n\r\n")
+
+
+def response_get_file(endpoint):
+    filepath = Path(os.curdir, ".." + endpoint)
+    try:
+        with open(filepath, "rb") as image_file:
+            image_data = image_file.read()
+            image_length = len(image_data)
+            return (f"HTTP/1.1 200 OK\r\n\r\n"
+                    f"Content-Type: application/octet-stream\r\n\r\n"
+                    f"Content-Length: {image_length}\r\n\r\n"
+                    f"{image_data}\r\n\r\n")
+    except FileNotFoundError:
+        return response_404()
+
+
+def response_404():
+    return "HTTP/1.1 404 Not Found\r\n\r\n"
 
 
 def parse_headers(request: str):
@@ -73,6 +95,7 @@ def parse_headers(request: str):
     return headers_dict
 
 
+
 def main():
     #Create the server on machine. This can open up to allow requests.
     server_socket = start_server()
@@ -81,8 +104,6 @@ def main():
         #Accept a call from outside the server. Save the other machine so we can reply with an HTTP code
         client_socket, client_address = server_socket.accept()
         threading.Thread(target=handle_request, args=(client_socket,)).start()
-
-
 
 
 if __name__ == "__main__":
