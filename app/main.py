@@ -2,6 +2,7 @@ import os
 import socket  # noqa: F401
 import threading
 from pathlib import Path
+import gzip
 
 
 RESPONSE_CODES = {
@@ -35,6 +36,11 @@ def parse_headers(request):
             headers_dict[h_split[0].replace(":", "")] = h_split[1].strip()
             headers_dict["Protocol"] = h_split[2].strip()
     return headers_dict
+
+
+def encode_gzip(data: str):
+    data_bytes = data.encode("utf-8")
+    return gzip.compress(data_bytes)
 
 
 class Request:
@@ -105,6 +111,8 @@ class Request:
 
     def response_get_echo(self, endpoint):
         parameter = endpoint.replace("/echo/", "")
+        if self.encoding == "gzip":
+            parameter = encode_gzip(parameter)
         return build_response(200, content_encoding=self.encoding, content_length=len(parameter), body=parameter)
 
 
