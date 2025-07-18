@@ -134,7 +134,7 @@ class Request:
 
 
 def start_server(host="localhost", port=4221, concurrent_connections=3):
-    server = socket.create_server((host, port))
+    server = socket.create_server((host, port), )
     server.listen(concurrent_connections)
     return server
 
@@ -148,6 +148,7 @@ def handle_request(client_socket):
         else:
             response = build_response(404)
         client_socket.sendall(response.encode("utf-8"))
+
 
 
 def main():
