@@ -2,6 +2,7 @@
 
 [HTTP](https://en.wikipedia.org/wiki/Hypertext_Transfer_Protocol) is the
 protocol that powers the web. 
+The code is my own, however it follows a guided outline by codecrafters.
 
 ## Requests
 - `GET /`
