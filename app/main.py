@@ -23,16 +23,17 @@ def build_response(code=200, content_type='text/plain', content_length=0, conten
 def parse_headers(request):
     headers_dict = {}
     for header in request.split("\r\n"):
-        h_split = header.split(" ")
+        h_split = header.split(":", 1)
 
         #Normal header such as "Connection" : "keep-alive"
         if len(h_split) == 2:
-            headers_dict[h_split[0].replace(":", "")] = h_split[1]
+            headers_dict[h_split[0].replace(":", "")] = h_split[1].strip()
 
         # ex: GET /user-agent HTTP/1.1
-        elif len(h_split) == 3:
-            headers_dict[h_split[0].replace(":", "")] = h_split[1]
-            headers_dict["Protocol"] = h_split[2]
+        elif len(h_split) == 1:
+            h_split = header.split(" ")
+            headers_dict[h_split[0].replace(":", "")] = h_split[1].strip()
+            headers_dict["Protocol"] = h_split[2].strip()
     return headers_dict
 
 
@@ -64,9 +65,11 @@ class Request:
 
     def resolve_encoding(self):
         if "Accept-Encoding" in self.headers:
-            requested_encoding = self.headers["Accept-Encoding"]
-            if requested_encoding in self.ALLOWED_ENCODINGS:
-                return requested_encoding
+            requested_encodings = list(self.headers["Accept-Encoding"].split(","))
+            for encoding in requested_encodings:
+                encoding = encoding.strip()
+                if encoding in self.ALLOWED_ENCODINGS:
+                    return encoding
         return None
 
 
